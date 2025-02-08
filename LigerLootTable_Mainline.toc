@@ -1,0 +1,9 @@
+## Interface: 110007
+## Title: LigerLootTable
+## Notes: Liger's Loot Table tracked in game.
+## Author: Liger
+## Version: @project-version@
+
+embeds.xml
+
+main.lua
