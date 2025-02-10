@@ -3,6 +3,7 @@
 ## Notes: Liger's Loot Table tracked in game.
 ## Author: Liger
 ## Version: @project-version@
+## SavedVariables: LigerLootTableDB, LigerLootTableDB2
 
 embeds.xml
 
