@@ -46,7 +46,7 @@ do
     { spellId = 31252,                subType = "Prospecting",   sourceTypeMask = LLT.SourceTypeMask.Item },
     { spellId = LLT.ScrappingSpellId, subType = "Scrapping",     sourceTypeMask = LLT.SourceTypeMask.Item },
     { spellId = 921,                  subType = "PickPocketing", sourceTypeMask = LLT.SourceTypeMask.Unit },
-    { spellId = 131476,               subType = "Fishing",       sourceTypeMask = LLT.SourceTypeMask.WORLD },
+    -- { spellId = 131476,               subType = "Fishing",       sourceTypeMask = LLT.SourceTypeMask.WORLD },
   };
 
   for _, spellData in ipairs(LLT.SpecialSpells) do
@@ -69,7 +69,7 @@ function LLT:GetLootTable(sourceType, sourceId, subType)
   if not lootTable then return end
   setmetatable(lootTable, {
     __tostring = function(t)
-      return ("LootTable:%s"):format(sourceType, sourceId, subType)
+      return ("LootTable:%s"):format(key)
     end,
   })
   return lootTable
@@ -161,7 +161,7 @@ function LLT:HandleSpell(event, ...)
     if not specialSpell.lastCast.castGuid then
       specialSpell.lastCast.castGuid = castGuid
     elseif castGuid ~= specialSpell.lastCast.castGuid then
-      error("Cast guid mismatch")
+      -- error("Cast guid mismatch")
     end
     specialSpell.lastCast.timestamp = GetTime()
   end
@@ -233,8 +233,12 @@ function LLT:AddLootRecord(lootTable, lootInfo)
   lootTable.count = lootTable.count + 1
   local record = { m = lootInfo.money, i = lootInfo.item, c = lootInfo.currency }
   table.insert(lootTable.records, record)
-  if lootTable.count > 100 then
-    LLT:Print("Warning: LootTable:" .. tostring(lootTable) .. " has more than 100 records")
+  if #lootTable.records > 200 then
+    -- LLT:Print("Warning: LootTable:" .. tostring(lootTable) .. " has more than 100 records")
+    -- 移除旧的记录
+    while #lootTable.records > 200 do
+      table.remove(lootTable.records, 1)
+    end
   end
 end
 
@@ -320,7 +324,7 @@ function LLT:FormatNumber(num)
 end
 
 function LLT:ParseLootTable(lootTable, title)
-  if not lootTable or lootTable.count == 0 then return end
+  if not lootTable or lootTable.count == 0 then return {} end
 
   local lines = {}
 
@@ -342,7 +346,7 @@ function LLT:ParseLootTable(lootTable, title)
     totalMoney = totalMoney + (record.m or 0)
   end
 
-  -- icon, color, name, quantity, typeString
+  -- icon, color, name, quantity, typeString, classId, subClassId, quality
   local items = {}
   -- icon, price
   local junks = {}
@@ -359,7 +363,7 @@ function LLT:ParseLootTable(lootTable, title)
         items[itemId] = (items[itemId] or 0) + quantity
         local color = select(4, C_Item.GetItemQualityColor(quality))
         local typeString = ("%s-%s"):format(itemType, itemSubType)
-        table.insert(items, { icon, color, name, quantity, typeString })
+        table.insert(items, { icon, color, name, quantity, typeString, classId, subClassId, quality })
       end
     end
   end
@@ -371,7 +375,21 @@ function LLT:ParseLootTable(lootTable, title)
     end
   end
 
-  table.sort(items, function(a, b) return a[4] > b[4] end)
+  table.sort(items, function(a, b)
+    if a[4] ~= b[4] then
+      return a[4] > b[4]
+    end
+    if a[8] ~= b[8] then
+      return a[8] < b[8]
+    end
+    if a[6] ~= b[6] then
+      return a[6] < b[6]
+    end
+    if a[7] ~= b[7] then
+      return a[7] < b[7]
+    end
+    return false
+  end)
   table.sort(currencies, function(a, b) return a[3] > b[3] end)
   table.sort(junks, function(a, b) return a[2] > b[2] end)
 
@@ -428,7 +446,7 @@ function LLT:ParseLootTable(lootTable, title)
     setmetatable(line, {
       __tostring = function(t)
         if t.type == "title" then
-          return RAID_CLASS_COLORS.EVOKER:WrapTextInColorCode(("---- %s ----"):format(t.title))
+          return RAID_CLASS_COLORS.EVOKER:WrapTextInColorCode(("---- %s ----"):format(t.title)) or ""
         end
         if t.type == "item" then
           return ("|T%s:0|t %s x%s"):format(t.icon, t.name, LLT:FormatNumber(t.average))
@@ -449,3 +467,70 @@ function LLT:ParseLootTable(lootTable, title)
 
   return lines
 end
+
+function LLT:AttachTooltipWithLootTable(tooltip, lootTable, title)
+  if not lootTable or lootTable.count == 0 then return end
+  local lines = LLT:ParseLootTable(lootTable, title)
+
+  for _, line in ipairs(lines) do
+    if line.type == "title" then
+      tooltip:AddDoubleLine(("---- %s ----"):format(line.title), lootTable.count, RAID_CLASS_COLORS.EVOKER:GetRGB())
+    elseif line.type == "item" or line.type == "currency" then
+      tooltip:AddDoubleLine(
+        ("|T%s:0|t %s x%s"):format(line.icon, line.name, LLT:FormatNumber(line.average)),
+        line.typeString,
+        nil, nil, nil,
+        0.5, 0.5, 0.5
+      )
+    elseif line.type == "junk" then
+      tooltip:AddLine(("%s %s"):format(line.name, GetMoneyString(line.average)))
+    elseif line.type == "money" then
+      tooltip:AddLine(("|T%s:0|t %s"):format(line.icon, GetMoneyString(line.average)))
+    end
+  end
+end
+
+function LLT:AttachUnitTooltip(tooltip, data)
+  if not data then return end
+  local sourceType, sourceId = LLT:GetSourceByGuid(data.guid)
+  do
+    local lootTable = LLT:GetLootTable(sourceType, sourceId)
+    LLT:AttachTooltipWithLootTable(tooltip, lootTable, data.lines[1].leftText)
+  end
+  for _, spell in ipairs(LLT.SpecialSpells) do
+    if bit.band(spell.sourceTypeMask, LLT.SourceTypeMask.Unit) ~= 0 then
+      local lootTable = LLT:GetLootTable(sourceType, sourceId, spell.subType)
+      LLT:AttachTooltipWithLootTable(tooltip, lootTable, spell.spellName)
+    end
+  end
+end
+
+TooltipDataProcessor.AddTooltipPostCall(
+  Enum.TooltipDataType.Unit,
+  function(tooltip, data)
+    return LLT:AttachUnitTooltip(tooltip, data)
+  end
+)
+
+
+function LLT:AttachItemTooltip(tooltip, data)
+  if not data then return end
+  local sourceType, sourceId = "Item", data.id
+  do
+    local lootTable = LLT:GetLootTable(sourceType, sourceId)
+    LLT:AttachTooltipWithLootTable(tooltip, lootTable, data.lines[1].leftText)
+  end
+  for _, spell in ipairs(LLT.SpecialSpells) do
+    if bit.band(spell.sourceTypeMask, LLT.SourceTypeMask.Unit) ~= 0 then
+      local lootTable = LLT:GetLootTable(sourceType, sourceId, spell.subType)
+      LLT:AttachTooltipWithLootTable(tooltip, lootTable, spell.spellName)
+    end
+  end
+end
+
+TooltipDataProcessor.AddTooltipPostCall(
+  Enum.TooltipDataType.Item,
+  function(tooltip, data)
+    return LLT:AttachItemTooltip(tooltip, data)
+  end
+)
