@@ -400,7 +400,7 @@ function LLT:ParseLootTable(lootTable, title)
       icon = icon,
       name = ("|c%s%s|r"):format(color, name),
       total = quantity,
-      average = quantity / lootTable.count,
+      average = quantity / #lootTable.records,
       typeString = typeString,
     })
   end
@@ -411,7 +411,7 @@ function LLT:ParseLootTable(lootTable, title)
       icon = icon,
       name = name,
       total = quantity,
-      average = quantity / lootTable.count,
+      average = quantity / #lootTable.records,
       typeString = CURRENCY,
     })
   end
@@ -428,7 +428,7 @@ function LLT:ParseLootTable(lootTable, title)
       name = table.concat(junkLabels, " "),
       -- label = table.concat(junkLabels, " "),
       total = junkTotalPrice,
-      average = junkTotalPrice / lootTable.count,
+      average = junkTotalPrice / #lootTable.records,
     })
   end
   if totalMoney > 0 then
@@ -438,7 +438,7 @@ function LLT:ParseLootTable(lootTable, title)
       name = "金钱",
       -- label = "|T133785:0|t",
       total = totalMoney,
-      average = totalMoney / lootTable.count,
+      average = totalMoney / #lootTable.records,
     })
   end
 
