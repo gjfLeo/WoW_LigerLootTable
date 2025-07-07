@@ -1,4 +1,4 @@
-## Interface: 110007
+## Interface: 110107
 ## Title: LigerLootTable
 ## Notes: Liger's Loot Table tracked in game.
 ## Author: Liger
